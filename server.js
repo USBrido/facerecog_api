@@ -10,7 +10,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-knex({
+const db = knex({
   client: 'pg',
   connection: {
     host : '127.0.0.1',
@@ -19,6 +19,7 @@ knex({
     database : 'user-database'
   }
 });
+
 
 const database = {
   users: [
@@ -67,44 +68,45 @@ app.post('/register',(req, res) => {
   // bcrypt.hash(password, null, null, function(err, hash) {
   //   console.log(hash);
   // });
-  database.users.push(
-    {
-      id: '125',
-      name: name,
+  db('users')
+    .returning('*')
+    .insert({
       email: email,
-      entries: 0,
+      name: name,
       joined: new Date()
-    });
-  res.json(database.users[database.users.length - 1]);
+    })
+    .then(user => {
+      res.json(user[0]);
+    })
+    .catch(error => res.status(400).json('Unable to register'));
+  
 });
 
 app.get('/profile/:id', (req, res) => {
   const { id } = req.params;
-  let found = false;
-  database.users.forEach(user => {
-    if (user.id === id) {
-      found = true;
-      return res.json(user);
-    }
-  });
-  if (!found) {
-    res.status(404).json("no such user");
-  }
+  db.select('*')
+    .where({id})
+    .from('users')
+    .then(user => {
+      if (user.length) {
+        res.json(user[0]);
+      } else {
+        res.status(400).json('Not found');
+      }
+    })
+    .catch(error => res.status(400).json('Error retrieving user'));
 });
 
 app.put('/image', (req, res) => {
   const { id } = req.body;
-  let found = false;
-  database.users.forEach(user => {
-    if (user.id === id) {
-      found = true;
-      user.entries++;
-      return res.json(user.entries);
-    }
-  });
-  if (!found) {
-    res.status(404).json("no such user");
-  }
+  db.where('id', '=', id)
+    .from('users')
+    .increment('entries', 1)
+    .returning('entries')
+    .then(entries => {
+      res.json(entries[0]);
+    })
+    .catch(error => res.status(400).json('Error retrieving entries'));
 });
 
 app.listen(3000, () => {
